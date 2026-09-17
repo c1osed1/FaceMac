@@ -1,0 +1,398 @@
+import Foundation
+
+public enum AppLanguage: String, CaseIterable, Codable, Sendable {
+    case system
+    case en
+    case ru
+    case zh
+
+    public var displayName: String {
+        switch self {
+        case .system: return "System"
+        case .en: return "English"
+        case .ru: return "Русский"
+        case .zh: return "中文"
+        }
+    }
+}
+
+/// Tiny string table. Deliberately not `.strings` files: the app needs a
+/// language picker that takes effect immediately and can be overridden
+/// independently of the system language.
+public enum L10n {
+    public nonisolated(unsafe) static var language: AppLanguage = .system
+
+    public static func t(_ key: String) -> String {
+        let resolved = resolvedLanguage
+        return tables[resolved]?[key] ?? tables[.en]?[key] ?? key
+    }
+
+    public static var resolvedLanguage: AppLanguage { resolvedLanguageValue() }
+
+    private static func resolvedLanguageValue() -> AppLanguage {
+        if language != .system { return language }
+        let preferred = Locale.preferredLanguages.first ?? "en"
+        if preferred.hasPrefix("ru") { return .ru }
+        if preferred.hasPrefix("zh") { return .zh }
+        return .en
+    }
+
+    private static let tables: [AppLanguage: [String: String]] = [
+        .en: en,
+        .ru: ru,
+        .zh: zh,
+    ]
+
+    // MARK: Tables
+
+    private static let en: [String: String] = [
+        "menu.enabled": "Enabled",
+        "menu.enroll": "Enroll Face…",
+        "menu.test": "Test Recognition…",
+        "menu.previewNotch": "Preview Notch Animation",
+        "menu.scanNow": "Scan Now",
+        "menu.forgetFace": "Forget My Face",
+        "menu.setPassword": "Set Saved Password…",
+        "menu.changePassword": "Change Saved Password…",
+        "menu.typePassword": "Type Saved Password Now",
+        "menu.grantAccessibility": "Grant Accessibility Permission…",
+        "menu.settings": "Settings…",
+        "menu.quit": "Quit FaceMac",
+
+        "notch.looking": "Looking…",
+        "notch.itsYou": "It's you",
+        "notch.match": "%d%% match",
+        "notch.notRecognised": "Face not recognised",
+        "notch.notYou": "Not you",
+
+        "status.idle": "Idle",
+        "status.disabled": "Disabled",
+        "status.armed": "Watching for lock",
+        "status.scanning": "Recognising…",
+        "status.unlocking": "Matched (%.2f), typing password…",
+        "status.timedOut": "Face not recognised",
+
+        "step.center": "Look straight at the camera",
+        "step.left": "Turn your head left",
+        "step.right": "Turn your head right",
+        "step.tiltLeft": "Tilt your head toward your left shoulder",
+        "step.tiltRight": "Tilt your head toward your right shoulder",
+
+        "enroll.start": "Start Enrolling",
+        "enroll.cancel": "Cancel",
+        "enroll.forget": "Forget My Face",
+        "enroll.ready": "Press Start, then follow the prompts.",
+        "enroll.done": "Done — %d samples, threshold %.2f",
+        "enroll.cancelled": "Cancelled.",
+        "enroll.notEnoughAngles": "Not enough angles — turn your head further.",
+        "enroll.failed": "Failed: %@",
+        "enroll.noFace": "No face in frame",
+
+        "test.noFace": "No face in frame",
+        "test.itsYou": "IT'S YOU",
+        "test.done": "Done",
+        "test.hint": "Lock your Mac, or press Ctrl+Cmd+Q, with FaceMac enabled — it should unlock for you.",
+        "test.threshold": "threshold",
+
+        "settings.recognition": "Recognition",
+        "settings.embedder": "Embedder",
+        "settings.language": "Language",
+        "settings.notchWidth": "Notch width",
+        "settings.threshold": "Match threshold",
+        "settings.thresholdHint": "Higher is stricter. SFace recommends 0.36; enrollment calibrates this automatically.",
+        "settings.unlock": "Unlock",
+        "settings.frames": "Frames to confirm: %d",
+        "settings.framesHint": "How many consecutive camera frames must match before the password is typed. Higher is safer.",
+        "settings.cameraOnFor": "Camera on for",
+        "settings.cameraOnHint": "After this long without a match the camera turns off and the notch offers Try Again.",
+        "settings.maxAttempts": "Max attempts: %d",
+        "settings.cooldown": "Cooldown",
+        "settings.lockScreenButton": "Lock screen button",
+        "settings.preview": "Preview while unlocked",
+        "settings.previewHint": "Shows the round scan button while unlocked. Drag it right onto your avatar to place it — the position is kept for the lock screen. The sliders below are fine-tuning.",
+        "settings.size": "Size",
+        "settings.horizontal": "Horizontal",
+        "settings.vertical": "Vertical",
+        "settings.permissions": "Permissions",
+        "settings.accessibilityGranted": "Accessibility granted",
+        "settings.accessibilityNotGranted": "Accessibility not granted",
+        "settings.grant": "Grant…",
+        "settings.passwordSaved": "Password saved",
+        "settings.faceEnrolled": "Face enrolled",
+        "settings.yes": "Yes",
+        "settings.tab.general": "General",
+        "settings.tab.about": "About",
+        "settings.status": "Status",
+        "settings.search": "Search",
+        "settings.previewSection": "Preview",
+        "settings.previewNotch": "Preview notch",
+        "settings.previewNotchHint": "Play the scan and success animation",
+        "settings.scanNowHint": "Start a recognition attempt right now",
+        "settings.accessibility": "Accessibility",
+        "settings.faceData": "Face data",
+        "settings.showMatchText": "Show match text",
+        "settings.match": "Matching",
+        "settings.scanning": "Scanning",
+        "settings.timing": "Timing",
+        "settings.password": "Password",
+        "settings.position": "Position",
+        "settings.keepAwake": "Keep display awake while scanning",
+        "settings.generalSubtitle": "Face unlock for macOS. Look at your Mac and it types your saved password at the lock screen.",
+        "settings.aboutBody": "Open-source face unlock for macOS, built on SFace and Apple Vision. Everything stays on this Mac.",
+        "settings.license": "License",
+        "settings.model": "Recognition model",
+        "settings.openGitHub": "Project page",
+        "settings.aboutFooter": "Not affiliated with Apple. Face ID is a trademark of Apple Inc.",
+
+        "settings.no": "No",
+
+        "alert.passwordTitle": "MacOS login password",
+        "alert.passwordInfo": "Stored in your Keychain and used only to type it at your own lock screen. It never leaves this Mac.",
+        "alert.save": "Save",
+        "alert.cancel": "Cancel",
+        "alert.typeTitle": "Type the saved password now?",
+        "alert.typeInfo": "FaceMac will type it into the frontmost window. Only do this with the lock screen in front.",
+        "alert.typeIt": "Type it",
+
+        "failure.noEnrollment": "No enrolled face. Enroll first.",
+        "failure.accessibility": "Accessibility permission required.",
+        "failure.noPassword": "No saved password. Add it in settings.",
+        "failure.camera": "Camera unavailable: %@",
+        "failure.giveUp": "Giving up after %d attempts. Log in manually.",
+        "failure.couldNotType": "Could not type password: %@",
+    ]
+
+    private static let ru: [String: String] = [
+        "menu.enabled": "Включено",
+        "menu.enroll": "Зарегистрировать лицо…",
+        "menu.test": "Проверить распознавание…",
+        "menu.previewNotch": "Показать анимацию нотча",
+        "menu.scanNow": "Сканировать сейчас",
+        "menu.forgetFace": "Удалить моё лицо",
+        "menu.setPassword": "Задать сохранённый пароль…",
+        "menu.changePassword": "Изменить сохранённый пароль…",
+        "menu.typePassword": "Ввести пароль сейчас",
+        "menu.grantAccessibility": "Разрешить Accessibility…",
+        "menu.settings": "Настройки…",
+        "menu.quit": "Выйти из FaceMac",
+
+        "notch.looking": "Ищу…",
+        "notch.itsYou": "Это ты",
+        "notch.match": "совпадение %d%%",
+        "notch.notRecognised": "Лицо не распознано",
+        "notch.notYou": "Это не ты",
+
+        "status.idle": "Простой",
+        "status.disabled": "Выключено",
+        "status.armed": "Жду блокировки",
+        "status.scanning": "Распознаю…",
+        "status.unlocking": "Совпало (%.2f), ввожу пароль…",
+        "status.timedOut": "Лицо не распознано",
+
+        "step.center": "Смотри прямо в камеру",
+        "step.left": "Поверни голову влево",
+        "step.right": "Поверни голову вправо",
+        "step.tiltLeft": "Наклони голову к левому плечу",
+        "step.tiltRight": "Наклони голову к правому плечу",
+
+        "enroll.start": "Начать регистрацию",
+        "enroll.cancel": "Отмена",
+        "enroll.forget": "Удалить моё лицо",
+        "enroll.ready": "Нажми «Начать» и следуй подсказкам.",
+        "enroll.done": "Готово — %d сэмплов, порог %.2f",
+        "enroll.cancelled": "Отменено.",
+        "enroll.notEnoughAngles": "Недостаточно ракурсов — поверни голову сильнее.",
+        "enroll.failed": "Ошибка: %@",
+        "enroll.noFace": "Лицо не в кадре",
+
+        "test.noFace": "Лицо не в кадре",
+        "test.itsYou": "ЭТО ТЫ",
+        "test.done": "Готово",
+        "test.hint": "Заблокируй Mac или нажми Ctrl+Cmd+Q при включённом FaceMac — он должен разблокировать сам.",
+        "test.threshold": "порог",
+
+        "settings.recognition": "Распознавание",
+        "settings.embedder": "Модель",
+        "settings.language": "Язык",
+        "settings.notchWidth": "Ширина нотча",
+        "settings.threshold": "Порог совпадения",
+        "settings.thresholdHint": "Выше — строже. SFace рекомендует 0.36; при регистрации подбирается автоматически.",
+        "settings.unlock": "Разблокировка",
+        "settings.frames": "Кадров для подтверждения: %d",
+        "settings.framesHint": "Сколько кадров подряд должны совпасть, прежде чем ввести пароль. Больше — надёжнее.",
+        "settings.cameraOnFor": "Камера включена",
+        "settings.cameraOnHint": "Если за это время не совпало, камера выключится, а нотч предложит «Try Again».",
+        "settings.maxAttempts": "Макс. попыток: %d",
+        "settings.cooldown": "Пауза",
+        "settings.lockScreenButton": "Кнопка на локскрине",
+        "settings.preview": "Показывать при разблокировке",
+        "settings.previewHint": "Показывает круглую кнопку скана, пока Mac разблокирован. Перетащи её на аватарку — позиция сохранится для локскрина. Слайдеры ниже — точная доводка.",
+        "settings.size": "Размер",
+        "settings.horizontal": "По горизонтали",
+        "settings.vertical": "По вертикали",
+        "settings.permissions": "Разрешения",
+        "settings.accessibilityGranted": "Accessibility разрешено",
+        "settings.accessibilityNotGranted": "Accessibility не разрешено",
+        "settings.grant": "Разрешить…",
+        "settings.passwordSaved": "Пароль сохранён",
+        "settings.faceEnrolled": "Лицо зарегистрировано",
+        "settings.yes": "Да",
+        "settings.tab.general": "Основные",
+        "settings.tab.about": "О программе",
+        "settings.status": "Статус",
+        "settings.search": "Поиск",
+        "settings.previewSection": "Превью",
+        "settings.previewNotch": "Показать нотч",
+        "settings.previewNotchHint": "Проиграть анимацию скана и успеха",
+        "settings.scanNowHint": "Запустить распознавание прямо сейчас",
+        "settings.accessibility": "Accessibility",
+        "settings.faceData": "Данные лица",
+        "settings.showMatchText": "Показывать текст совпадения",
+        "settings.match": "Сопоставление",
+        "settings.scanning": "Сканирование",
+        "settings.timing": "Тайминги",
+        "settings.password": "Пароль",
+        "settings.position": "Положение",
+        "settings.keepAwake": "Не гасить дисплей во время скана",
+        "settings.generalSubtitle": "Разблокировка по лицу для macOS. Смотришь на Mac — он вводит твой сохранённый пароль на локскрине.",
+        "settings.aboutBody": "Открытая разблокировка по лицу для macOS на SFace и Apple Vision. Всё остаётся на этом Mac.",
+        "settings.license": "Лицензия",
+        "settings.model": "Модель распознавания",
+        "settings.openGitHub": "Страница проекта",
+        "settings.aboutFooter": "Не связан с Apple. Face ID — торговая марка Apple Inc.",
+
+        "settings.no": "Нет",
+
+        "alert.passwordTitle": "Пароль входа в macOS",
+        "alert.passwordInfo": "Хранится в твоём Keychain и используется только чтобы ввести его на твоём экране блокировки. Он не покидает Mac.",
+        "alert.save": "Сохранить",
+        "alert.cancel": "Отмена",
+        "alert.typeTitle": "Ввести сохранённый пароль сейчас?",
+        "alert.typeInfo": "FaceMac введёт его в активное окно. Делай это только когда на экране локскрин.",
+        "alert.typeIt": "Ввести",
+
+        "failure.noEnrollment": "Лицо не зарегистрировано. Сначала зарегистрируй.",
+        "failure.accessibility": "Нужно разрешение Accessibility.",
+        "failure.noPassword": "Нет сохранённого пароля. Добавь в настройках.",
+        "failure.camera": "Камера недоступна: %@",
+        "failure.giveUp": "Сдаюсь после %d попыток. Войди вручную.",
+        "failure.couldNotType": "Не удалось ввести пароль: %@",
+    ]
+
+    private static let zh: [String: String] = [
+        "menu.enabled": "已启用",
+        "menu.enroll": "录入面容…",
+        "menu.test": "测试识别…",
+        "menu.previewNotch": "预览灵动岛动画",
+        "menu.scanNow": "立即扫描",
+        "menu.forgetFace": "删除我的面容",
+        "menu.setPassword": "设置已保存的密码…",
+        "menu.changePassword": "修改已保存的密码…",
+        "menu.typePassword": "立即输入密码",
+        "menu.grantAccessibility": "授予辅助功能权限…",
+        "menu.settings": "设置…",
+        "menu.quit": "退出 FaceMac",
+
+        "notch.looking": "正在识别…",
+        "notch.itsYou": "是你",
+        "notch.match": "匹配 %d%%",
+        "notch.notRecognised": "未识别到面容",
+        "notch.notYou": "不是你",
+
+        "status.idle": "空闲",
+        "status.disabled": "已关闭",
+        "status.armed": "等待锁屏",
+        "status.scanning": "识别中…",
+        "status.unlocking": "已匹配 (%.2f)，正在输入密码…",
+        "status.timedOut": "未识别到面容",
+
+        "step.center": "请直视摄像头",
+        "step.left": "向左转头",
+        "step.right": "向右转头",
+        "step.tiltLeft": "向左肩歪头",
+        "step.tiltRight": "向右肩歪头",
+
+        "enroll.start": "开始录入",
+        "enroll.cancel": "取消",
+        "enroll.forget": "删除我的面容",
+        "enroll.ready": "点击“开始录入”，然后按提示操作。",
+        "enroll.done": "完成 — %d 个样本，阈值 %.2f",
+        "enroll.cancelled": "已取消。",
+        "enroll.notEnoughAngles": "角度不足——请再转动头部。",
+        "enroll.failed": "失败：%@",
+        "enroll.noFace": "画面中没有人脸",
+
+        "test.noFace": "画面中没有人脸",
+        "test.itsYou": "是你",
+        "test.done": "完成",
+        "test.hint": "启用 FaceMac 后锁定 Mac 或按 Ctrl+Cmd+Q，它应会自动解锁。",
+        "test.threshold": "阈值",
+
+        "settings.recognition": "识别",
+        "settings.embedder": "嵌入模型",
+        "settings.language": "语言",
+        "settings.notchWidth": "灵动岛宽度",
+        "settings.threshold": "匹配阈值",
+        "settings.thresholdHint": "越高越严格。SFace 建议 0.36；录入时会自动校准。",
+        "settings.unlock": "解锁",
+        "settings.frames": "确认帧数：%d",
+        "settings.framesHint": "输入密码前需要连续匹配的摄像头帧数。越多越安全。",
+        "settings.cameraOnFor": "摄像头开启时长",
+        "settings.cameraOnHint": "超过该时间未匹配则关闭摄像头，灵动岛会提供“重试”。",
+        "settings.maxAttempts": "最大尝试次数：%d",
+        "settings.cooldown": "冷却时间",
+        "settings.lockScreenButton": "锁屏按钮",
+        "settings.preview": "解锁时预览",
+        "settings.previewHint": "解锁时显示圆形扫描按钮。把它拖到头像上即可定位，位置会用于锁屏。下方滑块用于微调。",
+        "settings.size": "大小",
+        "settings.horizontal": "水平",
+        "settings.vertical": "垂直",
+        "settings.permissions": "权限",
+        "settings.accessibilityGranted": "已授予辅助功能权限",
+        "settings.accessibilityNotGranted": "未授予辅助功能权限",
+        "settings.grant": "授予…",
+        "settings.passwordSaved": "已保存密码",
+        "settings.faceEnrolled": "已录入面容",
+        "settings.yes": "是",
+        "settings.tab.general": "通用",
+        "settings.tab.about": "关于",
+        "settings.status": "状态",
+        "settings.search": "搜索",
+        "settings.previewSection": "预览",
+        "settings.previewNotch": "预览灵动岛",
+        "settings.previewNotchHint": "播放扫描与成功动画",
+        "settings.scanNowHint": "立即开始一次识别",
+        "settings.accessibility": "辅助功能",
+        "settings.faceData": "面容数据",
+        "settings.showMatchText": "显示匹配文本",
+        "settings.match": "匹配",
+        "settings.scanning": "扫描",
+        "settings.timing": "计时",
+        "settings.password": "密码",
+        "settings.position": "位置",
+        "settings.keepAwake": "扫描时保持屏幕常亮",
+        "settings.generalSubtitle": "macOS 面容解锁。看着 Mac，它会在锁屏输入你保存的密码。",
+        "settings.aboutBody": "基于 SFace 与 Apple Vision 的开源 macOS 面容解锁。所有数据都留在本机。",
+        "settings.license": "许可证",
+        "settings.model": "识别模型",
+        "settings.openGitHub": "项目主页",
+        "settings.aboutFooter": "与 Apple 无关联。Face ID 是 Apple Inc. 的商标。",
+
+        "settings.no": "否",
+
+        "alert.passwordTitle": "macOS 登录密码",
+        "alert.passwordInfo": "保存在你的钥匙串中，仅用于在你自己锁屏时输入。它不会离开这台 Mac。",
+        "alert.save": "保存",
+        "alert.cancel": "取消",
+        "alert.typeTitle": "现在输入已保存的密码？",
+        "alert.typeInfo": "FaceMac 会将其输入到最前面的窗口。请仅在锁屏界面显示时操作。",
+        "alert.typeIt": "输入",
+
+        "failure.noEnrollment": "尚未录入面容，请先录入。",
+        "failure.accessibility": "需要辅助功能权限。",
+        "failure.noPassword": "未保存密码，请在设置中添加。",
+        "failure.camera": "摄像头不可用：%@",
+        "failure.giveUp": "已尝试 %d 次，请手动登录。",
+        "failure.couldNotType": "无法输入密码：%@",
+    ]
+}

@@ -1,0 +1,150 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without v prefix, e.g. 0.2.0. Empty uses MARKETING_VERSION."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    outputs:
+      should_release: ${{ steps.meta.outputs.should_release }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve version
+        id: meta
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          SHOULD=false
+          VERSION="${DISPATCH_VERSION:-}"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            SHOULD=true
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" && "${COMMIT_MESSAGE}" == *"[RELEASE]"* ]]; then
+            SHOULD=true
+            if [[ "${COMMIT_MESSAGE}" =~ \[RELEASE\][[:space:]]*v?([0-9]+\.[0-9]+(\.[0-9]+)?) ]]; then
+              VERSION="${BASH_REMATCH[1]}"
+            fi
+          fi
+
+          if [[ -z "${VERSION}" ]]; then
+            VERSION="$(sed -n 's/.*MARKETING_VERSION: "\([0-9][0-9.]*\)".*/\1/p' project.yml | head -n 1)"
+          fi
+          if [[ -z "${VERSION}" ]]; then
+            echo "Could not resolve a version" >&2
+            exit 1
+          fi
+
+          echo "should_release=${SHOULD}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "Release=${SHOULD} version=${VERSION}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache model toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            Tools/Conversion/.venv
+            Tools/Conversion/models
+          key: facemac-model-${{ runner.os }}-${{ hashFiles('Tools/Conversion/convert_sface.py', 'scripts/fetch-model.sh') }}
+
+      - name: Build the CoreML model
+        run: ./scripts/fetch-model.sh
+
+      - name: Install tools
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install create-dmg || true
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project FaceMac.xcodeproj \
+            -scheme FaceMac \
+            -configuration Release \
+            -derivedDataPath DerivedData \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM= \
+            ENABLE_HARDENED_RUNTIME=NO \
+            build
+
+      - name: Package DMG
+        run: |
+          set -euo pipefail
+          APP="DerivedData/Build/Products/Release/FaceMac.app"
+          test -d "${APP}"
+          ./scripts/make-dmg.sh "${APP}" "FaceMac-${{ steps.meta.outputs.version }}.dmg"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FaceMac.dmg
+          path: FaceMac-*.dmg
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: needs.build.outputs.should_release == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: FaceMac.dmg
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          TAG_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}"
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists. Bump MARKETING_VERSION or pass a new [RELEASE] 1.2.3 version." >&2
+            exit 1
+          fi
+
+          NOTES="$(printf '%s\n' "${COMMIT_MESSAGE:-}" | sed -E 's/\[RELEASE\][[:space:]]*v?[0-9.]*[[:space:]]*//' | sed '/^$/d')"
+          if [[ -z "${NOTES}" ]]; then
+            NOTES="FaceMac ${VERSION}"
+          fi
+
+          gh release create "${TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${TAG_SHA}" \
+            --title "FaceMac ${VERSION}" \
+            --notes "${NOTES}" \
+            "FaceMac-${VERSION}.dmg"
