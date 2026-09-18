@@ -20,6 +20,7 @@ public final class AppSettings {
         case showMatchText
         case rejectionThreshold
         case keepDisplayAwake
+        case livenessMode
     }
 
     private let defaults: UserDefaults
@@ -42,6 +43,7 @@ public final class AppSettings {
             Key.showMatchText.rawValue: true,
             Key.rejectionThreshold.rawValue: 0.20,
             Key.keepDisplayAwake.rawValue: true,
+            Key.livenessMode.rawValue: LivenessMode.blinkOrMotion.rawValue,
         ])
     }
 
@@ -119,6 +121,12 @@ public final class AppSettings {
     public var rejectionThreshold: Float {
         get { defaults.float(forKey: Key.rejectionThreshold.rawValue) }
         set { defaults.set(newValue, forKey: Key.rejectionThreshold.rawValue) }
+    }
+
+    /// Proof-of-life required before the password is typed.
+    public var livenessMode: LivenessMode {
+        get { LivenessMode(storedValue: defaults.string(forKey: Key.livenessMode.rawValue)) }
+        set { defaults.set(newValue.rawValue, forKey: Key.livenessMode.rawValue) }
     }
 
     /// Keeps the display from dimming while a scan is running.

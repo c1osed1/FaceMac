@@ -31,7 +31,7 @@ targets:
       path: Resources/Info.plist
       properties:
         CFBundleDisplayName: FaceMac
-        CFBundleShortVersionString: "0.1.0"
+        CFBundleShortVersionString: "0.1.1"
         CFBundleVersion: "1"
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
@@ -44,7 +44,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.facemac.app
         PRODUCT_NAME: FaceMac
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "0.1.1"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.0"
         # Sign with a stable identity so macOS TCC (Camera / Accessibility)

@@ -36,7 +36,7 @@ struct NotchPreview: View {
                         FaceScanView()
                     case .rejected:
                         HStack(spacing: 10) {
-                            FaceScanView(tint: .red)
+                            FaceScanView(tint: .red, showsSweep: false)
                             if showsText {
                                 Text(L10n.t("notch.notYou"))
                                     .font(.system(size: 13, weight: .semibold))

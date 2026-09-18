@@ -1,3 +1,4 @@
+import CoreGraphics
 import CoreVideo
 import XCTest
 @testable import FaceMacCore
@@ -279,5 +280,66 @@ final class EnrollmentStoreTests: XCTestCase {
 
         try store.delete()
         XCTAssertNil(try store.load())
+    }
+}
+
+final class LivenessTrackerTests: XCTestCase {
+    func testModeCombinations() {
+        XCTAssertTrue(LivenessTracker.isLive(mode: .off, blink: false, motion: false))
+        XCTAssertFalse(LivenessTracker.isLive(mode: .blink, blink: false, motion: true))
+        XCTAssertTrue(LivenessTracker.isLive(mode: .blink, blink: true, motion: false))
+        XCTAssertFalse(LivenessTracker.isLive(mode: .motion, blink: true, motion: false))
+        XCTAssertTrue(LivenessTracker.isLive(mode: .motion, blink: false, motion: true))
+        XCTAssertTrue(LivenessTracker.isLive(mode: .blinkOrMotion, blink: true, motion: false))
+        XCTAssertTrue(LivenessTracker.isLive(mode: .blinkOrMotion, blink: false, motion: true))
+        XCTAssertFalse(LivenessTracker.isLive(mode: .blinkOrMotion, blink: false, motion: false))
+        XCTAssertTrue(LivenessTracker.isLive(mode: .blinkAndMotion, blink: true, motion: true))
+        XCTAssertFalse(LivenessTracker.isLive(mode: .blinkAndMotion, blink: true, motion: false))
+        XCTAssertFalse(LivenessTracker.isLive(mode: .blinkAndMotion, blink: false, motion: true))
+    }
+
+    func testModeStoredValueFallsBack() {
+        XCTAssertEqual(LivenessMode(storedValue: "blink"), .blink)
+        XCTAssertEqual(LivenessMode(storedValue: "nonsense"), .blinkOrMotion)
+        XCTAssertEqual(LivenessMode(storedValue: nil), .blinkOrMotion)
+    }
+
+    func testMeanDisplacementIdenticalIsZero() {
+        let points = [CGPoint(x: 0.2, y: 0.3), CGPoint(x: 0.7, y: 0.6)]
+        XCTAssertEqual(LivenessTracker.meanDisplacement(from: points, to: points), 0)
+    }
+
+    func testMeanDisplacementAveragesDistances() {
+        let a = [CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 1)]
+        let b = [CGPoint(x: 3, y: 0), CGPoint(x: 1, y: 2)]
+        // distances: 3 and 1 -> mean 2
+        XCTAssertEqual(LivenessTracker.meanDisplacement(from: a, to: b), 2, accuracy: 0.0001)
+    }
+
+    func testMeanDisplacementRejectsMismatchedCounts() {
+        XCTAssertEqual(
+            LivenessTracker.meanDisplacement(from: [CGPoint(x: 0, y: 0)], to: []),
+            0
+        )
+    }
+
+    func testPoseDeltaSumsAbsoluteChanges() {
+        let delta = LivenessTracker.poseDelta(
+            from: (yaw: 0, pitch: 0, roll: 0),
+            to: (yaw: 0.5, pitch: -0.25, roll: 1)
+        )
+        XCTAssertEqual(delta, 1.75, accuracy: 0.0001)
+    }
+
+    func testSignatureAndRatioHandleMissingLandmarks() {
+        XCTAssertTrue(LivenessTracker.motionSignature(nil).isEmpty)
+        XCTAssertNil(LivenessTracker.eyeAspectRatio(nil, imageSize: CGSize(width: 100, height: 100)))
+    }
+
+    func testTrackerConfirmsAfterReset() {
+        let tracker = LivenessTracker()
+        tracker.reset()
+        XCTAssertFalse(tracker.isConfirmed(for: .blinkOrMotion))
+        XCTAssertTrue(tracker.isConfirmed(for: .off))
     }
 }

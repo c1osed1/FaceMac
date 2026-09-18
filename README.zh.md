@@ -11,39 +11,29 @@
 
 [English](README.md) · [Русский](README.ru.md) · **中文**
 
-</div>
+[![下载最新版本](https://img.shields.io/github/v/release/c1osed1/FaceMac?style=for-the-badge&label=下载&color=30D158&logo=apple&logoColor=white)](https://github.com/c1osed1/FaceMac/releases/latest)
 
----
+</div>
 
 ## 核心
 
-合上盖子，打开盖子，又得输密码。一天二十次。图什么？
+合上盖子，打开盖子，又得输密码。
 
 **FaceMac 通过内置摄像头认出你，并在你自己的锁屏上输入你自己保存的密码。**
 灵动岛亮起、扫描、画出对勾 —— 你还没坐稳就已经进去了。大约一秒，然后摄像头关闭。
 
-这就是 MacGaze 做的事，只不过开源、免费，而且可以随意改造。
-
 ## 为什么换过来
 
-- **永久免费。** 一个二进制文件，GPL-3.0，没有试用、没有许可证密钥、没有“家庭套餐”。
-- **天生私密。** 画面只在**你的 Mac 上**变成度量数据。帧从不写入磁盘，
-  面容特征和密码永不离开本机。
-- **灵动岛就是界面。** 真正的覆盖层：从灵动岛长出来，扫描时脉冲绿色面容图标，
-  成功时收拢成对勾。
-- **知道那不是你。** 陌生人会在约 0.4 秒内被红色抖动拒绝，而不是等满 5 秒。
-- **摄像头会关闭。** 5 秒没有匹配就停止；绿灯只在真正识别时亮起。
-- **端侧机器学习。** SFace（Apache-2.0）经 CoreML 运行，128 维向量，录入时按你的脸校准。
+- **永久免费。** 一个二进制文件，GPL-3.0，没有试用、没有许可证密钥。
+- **天生私密。** 帧从不写入磁盘，面容特征和密码永不离开本机。
+- **灵动岛就是界面。** 从灵动岛长出来，扫描时脉冲绿色面容图标，成功时收拢成对勾。
+- **知道那不是你。** 陌生人会在约 0.4 秒内被红色抖动拒绝。
+- **摄像头会关闭。** 5 秒没有匹配就停止。
+- **端侧机器学习。** SFace 经 CoreML 运行，128 维向量，录入时按你的脸校准。
 
 ## 长什么样
 
-### 灵动岛
-
 ![FaceMac 灵动岛动画](docs/notch.gif)
-
-扫描 → 匹配 → 拒绝，全都在灵动岛里，没有窗口、没有弹窗。
-
-### 设置
 
 ![FaceMac 设置](docs/settings.gif)
 
@@ -55,6 +45,7 @@
 | Face ID 风格动画 | 绿色扫描 → 形变为 Lottie 对勾 |
 | 引导录入 | 五个提示 —— 正视、左转、右转、歪头 —— 带实时圆环 |
 | 即时拒绝 | “明显不是你”立刻捕获，红色抖动 |
+| 活体检测 | 眨眼 / 微动作检测，端侧拒绝静态照片 |
 | 校准 | 匹配阈值按你的脸、摄像头与光线自动调整 |
 | 防漂移 | 最近参考**与**质心都要一致，且需连续 N 帧 |
 | 画质过滤 | 过小或过度侧转的脸被忽略，而不是靠猜 |
@@ -71,23 +62,34 @@
   → SFace CoreML 向量，128 维，L2 归一化            (MLFaceEmbedder)
   → 与录入样本的余弦相似度                          (FaceMatcher)
   → 最近样本 + 质心 + 连续 3 帧都需一致
+  → 眨眼 / 微动作检测                               (LivenessTracker)
   → 用 CGEvent 输入 Keychain 里的密码               (KeyboardInjector)
 ```
 
-运行时没有 Python，没有模型服务器，识别过程不发起任何网络请求。
+每一帧都不会写入磁盘，也不会发送到任何地方。
 
 ## 安装
 
 ### 从 Release 安装（最简单）
 
-1. 在 **Releases** 下载 `FaceMac-x.y.z.dmg`。
-2. 打开后把 **FaceMac** 拖进 **Applications**。
-3. 仅首次启动：右键应用 → **打开**。当前版本尚未公证，macOS 会询问一次，之后即可正常使用。
+下载[最新版本](https://github.com/c1osed1/FaceMac/releases/latest)，把 **FaceMac**
+拖进 **Applications**，首次启动右键 → **打开**（当前版本尚未公证）。
+
+### 用 Homebrew
+
+尚未进入官方 `homebrew/cask`（版本未公证），因此自带 tap：
+
+```sh
+brew tap c1osed1/facemac https://github.com/c1osed1/FaceMac.git
+brew install --cask --no-quarantine c1osed1/facemac/facemac
+```
+
+Cask 位于 [`Casks/facemac.rb`](Casks/facemac.rb)。
 
 ### 从源码构建
 
 ```sh
-git clone https://github.com/<you>/FaceMac.git
+git clone https://github.com/c1osed1/FaceMac.git
 cd FaceMac
 
 scripts/fetch-model.sh   # 构建 SFace 的 CoreML 模型（仅一次，需 Python 3.12+）
@@ -106,17 +108,16 @@ scripts/install.sh       # 构建、安装到 ~/Applications 并启动
 ## 系统要求
 
 - Apple 芯片 Mac，macOS 14 或更高
-- 内置摄像头（不使用连续互通相机 —— 被锁在外面时 iPhone 不会在旁边）
+- 内置摄像头（不使用连续互通相机）
 
-权限与**稳定的代码签名**绑定。FaceMac 使用 `Apple Development` 身份签名，
-因此 macOS 在重新构建后仍保留摄像头与辅助功能授权；ad-hoc 签名会让你每次都重新授权。
+权限与稳定的代码签名绑定，因此重新构建后仍保留摄像头与辅助功能授权。
 
 ## 关于安全，说实话
 
 FaceMac 提供的是**便利**，不是安全升级。
 
-- 内置摄像头没有红外与深度传感器。打印照片进不来，但用手机屏幕播放你的视频可能
-  骗过它。Apple 靠硬件解决，网络摄像头做不到。
+- 内置活体检测（眨眼 / 微动作）能拒绝静态照片，但并非防伪：用手机屏幕播放你的
+  视频仍可能骗过它。如果妨碍使用，可在 设置 → 识别 中关闭或放宽。
 - 它把 macOS 登录密码存在钥匙串里，因为这就是替你输入的方式。它不会离开本机 ——
   但它的确**在**本机上。
 - 它不会把你锁在外面：失败或退出时，你照常手动登录。
@@ -126,7 +127,7 @@ FaceMac 提供的是**便利**，不是安全升级。
 
 ```sh
 swift build          # 核心库 + CLI
-swift test           # 22 个单元测试，含 CoreML 与 ONNX 的一致性测试
+swift test           # 单元测试，含 CoreML 与 ONNX 的一致性测试
 xcodegen generate    # 生成 FaceMac.xcodeproj
 ```
 
@@ -143,15 +144,31 @@ Tools/Icon/        应用图标生成器
 scripts/           fetch-model.sh, install.sh, make-icon.sh
 ```
 
+## 发布
+
+发布由 GitHub Actions（`.github/workflows/ci.yml`）完成：
+
+- 每次构建 / PR 都会构建应用并上传 DMG 产物；
+- 提交信息包含 `[RELEASE] x.y.z`，或手动运行 **Build** workflow，会发布带该 DMG
+  的 GitHub Release。
+
+本地构建：
+
+```sh
+xcodebuild -project FaceMac.xcodeproj -scheme FaceMac -configuration Release \
+  -derivedDataPath .build/ReleaseData build
+scripts/make-dmg.sh .build/ReleaseData/Build/Products/Release/FaceMac.app FaceMac-0.1.1.dmg
+```
+
 ## 路线图
 
 - [x] 端侧 SFace 向量 + 按脸校准
-- [x] 覆盖锁屏的灵动岛 + Face ID 风格动画
+- [x] 覆盖锁屏的灵动岛
 - [x] 引导录入、即时拒绝、锁屏重试按钮
-- [ ] 活体检测（眨眼 / 微动作）
+- [x] 活体检测（眨眼 / 微动作）
+- [x] Homebrew cask
 - [ ] 一台 Mac 支持多张脸
 - [ ] 通过特权助手支持登录前（FileVault）
-- [ ] Homebrew cask
 
 ## 致谢
 

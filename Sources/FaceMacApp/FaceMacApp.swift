@@ -1,3 +1,4 @@
+import FaceMacCore
 import SwiftUI
 
 @main
@@ -14,17 +15,17 @@ struct FaceMacApp: App {
         }
         .menuBarExtraStyle(.menu)
 
-        Window("Enroll Face", id: WindowID.enroll) {
+        Window(Text(L10n.t("window.enroll")), id: WindowID.enroll) {
             EnrollView(model: model)
         }
         .windowResizability(.contentSize)
 
-        Window("Test Recognition", id: WindowID.test) {
+        Window(Text(L10n.t("window.test")), id: WindowID.test) {
             TestRecognitionView(model: model)
         }
         .windowResizability(.contentSize)
 
-        Window("FaceMac Settings", id: WindowID.settings) {
+        Window(Text(L10n.t("window.settings")), id: WindowID.settings) {
             SettingsWindowView(model: model)
         }
         .defaultSize(width: 900, height: 620)

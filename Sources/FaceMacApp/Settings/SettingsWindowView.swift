@@ -20,6 +20,7 @@ struct SettingsWindowView: View {
             List(filteredItems, selection: $selection) { item in
                 SidebarRow(item: item)
                     .tag(item)
+                    .id("\(item.id).\(model.uiLanguage.rawValue)")
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
@@ -280,9 +281,30 @@ private struct RecognitionPane: View {
                     Text(L10n.t("settings.thresholdHint"))
                         .foregroundStyle(.secondary)
                 }
+
+                Picker(L10n.t("settings.liveness"), selection: Binding(
+                    get: { model.livenessMode },
+                    set: { model.setLivenessMode($0) }
+                )) {
+                    ForEach(LivenessMode.allCases, id: \.self) { mode in
+                        Text(Self.label(for: mode)).tag(mode)
+                    }
+                }
+                Text(L10n.t("settings.livenessHint"))
+                    .foregroundStyle(.secondary)
             } header: {
                 Text(L10n.t("settings.match"))
             }
+        }
+    }
+
+    private static func label(for mode: LivenessMode) -> String {
+        switch mode {
+        case .off: return L10n.t("liveness.off")
+        case .blink: return L10n.t("liveness.blink")
+        case .motion: return L10n.t("liveness.motion")
+        case .blinkOrMotion: return L10n.t("liveness.blinkOrMotion")
+        case .blinkAndMotion: return L10n.t("liveness.blinkAndMotion")
         }
     }
 }

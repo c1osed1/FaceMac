@@ -1,9 +1,13 @@
+import AppKit
 import CoreGraphics
 import Foundation
 
 public protocol LockWatcherDelegate: AnyObject {
     func lockWatcherDidLock(_ watcher: LockWatcher)
     func lockWatcherDidUnlock(_ watcher: LockWatcher)
+    /// The display woke while the session was still locked — e.g. the lid was
+    /// opened. This is the natural moment to start recognising the user.
+    func lockWatcherDidWakeLocked(_ watcher: LockWatcher)
 }
 
 /// Observes screen lock / unlock for the current user session.
@@ -20,7 +24,7 @@ public final class LockWatcher {
     public weak var delegate: LockWatcherDelegate?
 
     private let center = DistributedNotificationCenter.default()
-    private var observers: [NSObjectProtocol] = []
+    private var observers: [(center: NotificationCenter, token: NSObjectProtocol)] = []
 
     public init() {}
 
@@ -45,12 +49,24 @@ public final class LockWatcher {
                     self.delegate?.lockWatcherDidUnlock(self)
                 }
             }
-            observers.append(token)
+            observers.append((center, token))
+        }
+
+        // The lid (or any display wake) while the session is locked is the one
+        // moment where scanning should start on its own.
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.didWakeNotification] {
+            let token = workspaceCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                guard let self, Self.isScreenLocked else { return }
+                Log.lock.info("display woke while locked")
+                self.delegate?.lockWatcherDidWakeLocked(self)
+            }
+            observers.append((workspaceCenter, token))
         }
     }
 
     public func stop() {
-        observers.forEach { center.removeObserver($0) }
+        observers.forEach { $0.center.removeObserver($0.token) }
         observers.removeAll()
     }
 

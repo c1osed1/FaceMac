@@ -11,6 +11,8 @@ public final class UnlockCoordinator {
         case idle
         case disabled
         case armed
+        /// Locked, camera off, waiting for the user to tap the scan button.
+        case prompted
         case scanning
         case unlocking(similarity: Float)
         case failed(reason: String)
@@ -18,6 +20,8 @@ public final class UnlockCoordinator {
         case timedOut
         /// Confidently a different person.
         case rejected
+        /// The face matched but looked like a photo — no blink or movement.
+        case spoof
     }
 
     public private(set) var state: State = .idle {
@@ -37,6 +41,7 @@ public final class UnlockCoordinator {
     private let store: EnrollmentStore
     private let keychain: KeychainStore
     private let detector = FaceDetector()
+    private let liveness = LivenessTracker()
     private let embedder: FaceEmbedder
     private let capture: CameraCapture
     private let injector = KeyboardInjector()
@@ -48,12 +53,17 @@ public final class UnlockCoordinator {
     private var frameCounter = 0
     private var lastAttemptAt = Date.distantPast
     private var isScanning = false
+    /// When the display last woke; used to tell a lid-open wake apart from a
+    /// deliberate lock so we know whether to scan straight away.
+    private var lastWakeAt = Date.distantPast
 
     /// Consecutive matching frames seen so far, and when the streak began.
     private var matchStreak = 0
     private var streakStartedAt: Date?
     private var lowScoreStreak = 0
     private var scanTimeoutWork: DispatchWorkItem?
+    /// Set when the face matched but liveness was not proven yet.
+    private var livenessBlocked = false
 
     public init(
         settings: AppSettings = .shared,
@@ -133,7 +143,9 @@ public final class UnlockCoordinator {
         attempts = 0
         frameCounter = 0
         lowScoreStreak = 0
+        livenessBlocked = false
         resetMatchStreak()
+        liveness.reset()
         do {
             try capture.acquire()
             if settings.keepDisplayAwake {
@@ -147,7 +159,32 @@ public final class UnlockCoordinator {
         }
     }
 
-    /// Re-arms recognition after a failed attempt (the notch "Try Again" button).
+    /// Sets up a locked-but-idle state: the camera stays off until the user taps
+    /// the scan button. Used for a deliberate lock (Ctrl+Cmd+Q, Apple menu).
+    private func promptForScan() {
+        guard settings.isEnabled else {
+            state = .disabled
+            return
+        }
+        guard let enrollment = cachedEnrollment, !enrollment.embeddings.isEmpty else {
+            state = .failed(reason: L10n.t("failure.noEnrollment"))
+            return
+        }
+        guard injectorReady() else {
+            state = .failed(reason: L10n.t("failure.accessibility"))
+            return
+        }
+        guard keychainHasPassword() else {
+            state = .failed(reason: L10n.t("failure.noPassword"))
+            return
+        }
+
+        stopScanning()
+        state = .prompted
+        Log.app.info("locked: waiting for the scan button")
+    }
+
+    /// Starts recognising — from the scan button or after a failed attempt.
     public func retryScan() {
         startScanning()
     }
@@ -158,8 +195,13 @@ public final class UnlockCoordinator {
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.isScanning else { return }
             self.stopScanning()
-            self.state = .timedOut
-            Log.app.info("scan timed out")
+            if self.livenessBlocked {
+                self.state = .spoof
+                Log.app.info("scan timed out: identity matched but no liveness")
+            } else {
+                self.state = .timedOut
+                Log.app.info("scan timed out")
+            }
         }
         scanTimeoutWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + settings.scanTimeout, execute: work)
@@ -208,6 +250,13 @@ public final class UnlockCoordinator {
             return
         }
 
+        let now = Date()
+        let imageSize = CGSize(
+            width: CVPixelBufferGetWidth(pixelBuffer),
+            height: CVPixelBufferGetHeight(pixelBuffer)
+        )
+        liveness.observe(face: face, imageSize: imageSize, at: now)
+
         guard let embedding = try? embedder.embed(FaceInput(pixelBuffer: pixelBuffer, face: face)) else {
             resetMatchStreak()
             return
@@ -244,7 +293,6 @@ public final class UnlockCoordinator {
             return
         }
 
-        let now = Date()
         if let started = streakStartedAt, now.timeIntervalSince(started) > 2.5 {
             matchStreak = 0
             streakStartedAt = nil
@@ -257,6 +305,15 @@ public final class UnlockCoordinator {
         )
 
         guard matchStreak >= settings.requiredFrames else { return }
+
+        // Identity alone is not enough: a printed photo matches too. Hold the
+        // unlock until the face has proven it is alive.
+        if settings.livenessMode.requiresConfirmation,
+           !liveness.isConfirmed(for: settings.livenessMode) {
+            livenessBlocked = true
+            Log.vision.debug("matched but not live yet (mode=\(self.settings.livenessMode.rawValue, privacy: .public))")
+            return
+        }
 
         guard settings.autoUnlock, now.timeIntervalSince(lastAttemptAt) >= settings.unlockCooldown else { return }
         lastAttemptAt = now
@@ -305,6 +362,17 @@ extension UnlockCoordinator: CameraCaptureDelegate {
 
 extension UnlockCoordinator: LockWatcherDelegate {
     public func lockWatcherDidLock(_ watcher: LockWatcher) {
+        // If the display just woke (lid opened) the lock is part of waking up,
+        // so scan immediately. A deliberate lock just offers the button.
+        if Date().timeIntervalSince(lastWakeAt) < 3 {
+            startScanning()
+        } else {
+            promptForScan()
+        }
+    }
+
+    public func lockWatcherDidWakeLocked(_ watcher: LockWatcher) {
+        lastWakeAt = Date()
         startScanning()
     }
 

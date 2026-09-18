@@ -11,54 +11,35 @@ No subscription. No cloud. No account. Your face never leaves the machine.
 
 **English** · [Русский](README.ru.md) · [中文](README.zh.md)
 
+[![Download the latest release](https://img.shields.io/github/v/release/c1osed1/FaceMac?style=for-the-badge&label=Download&color=30D158&logo=apple&logoColor=white)](https://github.com/c1osed1/FaceMac/releases/latest)
+
 ![License: GPL v3](https://img.shields.io/badge/License-GPLv3-30D158.svg)
 ![Platform](https://img.shields.io/badge/macOS-14%2B-black.svg)
 ![Swift](https://img.shields.io/badge/Swift-6-orange.svg)
 ![Made on-device](https://img.shields.io/badge/on--device-100%25-30D158.svg)
 
-
-
----
-
-
-
 ## The pitch
 
 You close the lid, you open it, the lock screen stares at you.
-You type a password twenty times a day for no reason.
 
-**FaceMac recognises you through the built-in camera and types your own saved
+**FaceMac recognises you through the built-in camera and types your saved
 password at your own lock screen.** The notch lights up, scans, draws a
-checkmark, and you're in — before you've finished sitting down. About a second,
-all up, and the camera light goes off.
-
-It's the thing MacGaze does, open-sourced, free, and hackable.
+checkmark, and you're in. About a second, all up, and the camera light goes off.
 
 ## Why people switch
 
-- **Free, forever.** One binary, GPL-3.0, no trial, no licence key, no "family plan".
-- **Private by construction.** A camera frame becomes measurements *on your Mac*.
-Frames are never written to disk. Faceprints and your password never leave the machine.
-- **The notch is the interface.** A real macOS notch overlay: it grows out of the
-notch, pulses a green face glyph while it looks at you, then collapses into a tick.
-- **Knows when it's not you.** A stranger gets rejected in ~0.4 s with a red shake,
-not a 5-second wait.
-- **The camera gets off.** 5 seconds without a match and it stops. The green light
-is only on while it's actually looking.
-- **Actually on-device ML.** SFace (Apache-2.0) via CoreML, 128-d embeddings,
-calibrated per-face at enrolment.
-
-
+- **Free, forever.** One binary, GPL-3.0, no trial, no licence key.
+- **Private by construction.** Frames are never written to disk. Faceprints and
+  your password never leave the machine.
+- **The notch is the interface.** It grows out of the notch, pulses a green face
+  glyph while it looks at you, then collapses into a tick.
+- **Knows when it's not you.** A stranger gets rejected in ~0.4 s with a red shake.
+- **The camera gets off.** 5 seconds without a match and it stops.
+- **On-device ML.** SFace via CoreML, 128-d embeddings, calibrated per face.
 
 ## What it looks like
 
-### The notch
-
 ![FaceMac notch animation](docs/notch.gif)
-
-Scan → matched → rejected, all in the notch. No window, no dialog.
-
-### Settings
 
 ![FaceMac settings](docs/settings.gif)
 
@@ -71,6 +52,7 @@ Scan → matched → rejected, all in the notch. No window, no dialog.
 | Face ID style animation | Green scan glyph → morph into a Lottie checkmark                      |
 | Guided enrolment        | Five prompts — straight, left, right, tilt, tilt — with a live ring   |
 | Rejection               | Confidently-not-you is caught instantly and shaken off in red         |
+| Liveness                | Blink / micro-motion check rejects still photos, on-device            |
 | Calibration             | The accept threshold is tuned to *your* face, camera and lighting     |
 | Anti-drift              | Best-reference **and** centroid must agree, over N consecutive frames |
 | Quality gates           | Tiny or heavily turned faces are ignored instead of guessed           |
@@ -90,20 +72,31 @@ camera frame
   → SFace CoreML embedding, 128-d, L2-normalised           (MLFaceEmbedder)
   → cosine similarity vs enrolment                         (FaceMatcher)
   → best + centroid + 3 consecutive frames must agree
+  → blink / micro-motion check                             (LivenessTracker)
   → type the Keychain password with CGEvent                (KeyboardInjector)
-  → screenshot… no. Nothing is captured, ever.
 ```
 
-No Python at runtime, no model server, no network call to recognise you.
+No frame is ever written to disk or sent anywhere.
 
 ## Install
 
 ### From a release (easiest)
 
-1. Grab `FaceMac-x.y.z.dmg` from **Releases**.
-2. Open it and drag **FaceMac** onto **Applications**.
-3. First launch only: right-click the app → **Open**. Builds aren't notarized yet,
-   so macOS asks once — after that it just works.
+Grab the [latest release](https://github.com/c1osed1/FaceMac/releases/latest),
+drag **FaceMac** onto **Applications**, and on first launch right-click → **Open**
+(builds aren't notarized yet).
+
+### With Homebrew
+
+Not in the official `homebrew/cask` tap yet (releases aren't notarized), so it
+ships as its own tap:
+
+```sh
+brew tap c1osed1/facemac https://github.com/c1osed1/FaceMac.git
+brew install --cask --no-quarantine c1osed1/facemac/facemac
+```
+
+The cask lives at [`Casks/facemac.rb`](Casks/facemac.rb).
 
 ### From source
 
@@ -127,20 +120,19 @@ scripts/install.sh       # builds and installs to ~/Applications, then launches
 ## Requirements
 
 - Apple silicon Mac, macOS 14 or later
-- Built-in camera (Continuity Camera is not used — your iPhone won't be there
-when you're locked out)
+- Built-in camera (Continuity Camera is not used)
 
-Permissions are tied to a **stable code signature**. FaceMac signs with an
-`Apple Development` identity so macOS keeps the Camera/Accessibility grants
-across rebuilds; ad-hoc signing would make you re-approve every build.
+Permissions are tied to a stable code signature, so a rebuild keeps the
+Camera/Accessibility grants.
 
 ## Security, honestly
 
 FaceMac is a **convenience**, not a security upgrade.
 
-- The built-in camera has no IR or depth sensor. A printed photo won't get in,
-but a good video of you on a phone screen might. Apple's hardware solves this;
-a webcam can't.
+- An on-device liveness check (blink / natural micro-motion) rejects a still
+photo, but it is not spoof-proof: a good video of you on a phone screen might
+still get in. Turn it off or relax it in Settings → Recognition if it gets in
+your way.
 - It stores your macOS login password in the Keychain, because that's how it
 types it for you. It never leaves the machine — but it *is* on the machine.
 - It cannot lock you out: if it fails or you quit it, you log in exactly as before.
@@ -153,7 +145,7 @@ a scan is in progress.
 
 ```sh
 swift build          # core library + CLI
-swift test           # 22 unit tests, incl. a CoreML vs ONNX parity test
+swift test           # unit tests, incl. a CoreML vs ONNX parity test
 xcodegen generate    # produce FaceMac.xcodeproj
 ```
 
@@ -187,27 +179,22 @@ Build it locally with:
 ```sh
 xcodebuild -project FaceMac.xcodeproj -scheme FaceMac -configuration Release \
   -derivedDataPath .build/ReleaseData build
-scripts/make-dmg.sh .build/ReleaseData/Build/Products/Release/FaceMac.app FaceMac-0.1.0.dmg
+  scripts/make-dmg.sh .build/ReleaseData/Build/Products/Release/FaceMac.app FaceMac-0.1.1.dmg
 ```
 
-### Notarization
-
-The CI build is ad-hoc signed, so macOS warns on first launch (right-click → Open).
-To ship warning-free builds you need a paid Apple Developer account:
-sign with a **Developer ID Application** certificate and notarize with
-`notarytool`, then staple the ticket to the DMG. Wire the certificate and an
-App Store Connect API key into repository secrets and add the signing steps to
-the workflow — the DMG script already produces the artifact to notarize.
+The CI build is ad-hoc signed, so macOS warns on first launch. Warning-free
+builds need a paid Apple Developer account: sign with a **Developer ID
+Application** certificate, notarize with `notarytool`, and staple the ticket.
 
 ## Roadmap
 
 - [x] On-device SFace embeddings + per-face calibration
-- [x] Notch overlay above the lock screen, Face ID style animation
+- [x] Notch overlay above the lock screen
 - [x] Guided enrolment, instant rejection, lock-screen retry button
-- [ ] Liveness (blink / micro-motion)
+- [x] Liveness (blink / micro-motion)
+- [x] Homebrew cask
 - [ ] Multiple faces per Mac
 - [ ] Pre-login (FileVault) support via a privileged helper
-- [ ] Homebrew cask
 
 
 

@@ -23,6 +23,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var maxAttempts: Int
     @Published private(set) var unlockCooldown: Double
     @Published private(set) var requiredFrames: Int
+    @Published private(set) var livenessMode: LivenessMode
     @Published private(set) var scanTimeout: Double
     @Published private(set) var retryOffsetX: Double
     @Published private(set) var retryVerticalFraction: Double
@@ -83,6 +84,7 @@ final class AppModel: ObservableObject {
         self.maxAttempts = settings.maxAttempts
         self.unlockCooldown = settings.unlockCooldown
         self.requiredFrames = settings.requiredFrames
+        self.livenessMode = settings.livenessMode
         self.scanTimeout = settings.scanTimeout
         self.retryOffsetX = settings.retryButtonOffsetX
         self.retryVerticalFraction = settings.retryButtonVerticalFraction
@@ -136,18 +138,25 @@ final class AppModel: ObservableObject {
     private func apply(_ state: UnlockCoordinator.State) {
         statusText = AppModel.describe(state)
 
-        var scanFailed = false
+        var showScanButton = false
         switch state {
         case .scanning:
             notch.handle(.scanning)
         case .unlocking(let similarity):
             notch.handle(.matched(similarity: similarity))
+        case .prompted:
+            // Locked on purpose: keep the camera off, just offer the scan button.
+            notch.handle(.hidden)
+            showScanButton = true
         case .timedOut:
-            scanFailed = true
+            showScanButton = true
             notch.handle(.failed(reason: L10n.t("notch.notRecognised")))
         case .rejected:
-            scanFailed = true
+            showScanButton = true
             notch.handle(.rejected(reason: L10n.t("notch.notYou")))
+        case .spoof:
+            showScanButton = true
+            notch.handle(.rejected(reason: L10n.t("notch.notLive")))
         case .idle, .disabled, .armed:
             notch.handle(.hidden)
         case .failed(let reason):
@@ -156,8 +165,9 @@ final class AppModel: ObservableObject {
             }
         }
 
-        // The lock-screen retry button only exists after a failed attempt.
-        retryButton.setFailed(scanFailed)
+        // The lock-screen button is offered while locked and idle, and after a
+        // failed attempt so the user can try again.
+        retryButton.setPrompted(showScanButton)
     }
 
     func previewNotch() {
@@ -178,11 +188,13 @@ final class AppModel: ObservableObject {
         case .idle: return L10n.t("status.idle")
         case .disabled: return L10n.t("status.disabled")
         case .armed: return L10n.t("status.armed")
+        case .prompted: return L10n.t("status.prompted")
         case .scanning: return L10n.t("status.scanning")
         case .unlocking(let similarity): return String(format: L10n.t("status.unlocking"), similarity)
         case .failed(let reason): return reason
         case .timedOut: return L10n.t("status.timedOut")
         case .rejected: return L10n.t("notch.notYou")
+        case .spoof: return L10n.t("status.notLive")
         }
     }
 
@@ -447,6 +459,11 @@ final class AppModel: ObservableObject {
     func updateRequiredFrames(_ value: Int) {
         requiredFrames = value
         settings.requiredFrames = value
+    }
+
+    func setLivenessMode(_ value: LivenessMode) {
+        livenessMode = value
+        settings.livenessMode = value
     }
 
     func updateScanTimeout(_ value: Double) {

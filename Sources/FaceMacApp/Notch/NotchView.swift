@@ -73,7 +73,7 @@ struct NotchView: View {
 
         case .failed(let reason):
             HStack(spacing: 10) {
-                FaceScanView(tint: .orange)
+                FaceScanView(tint: .orange, showsSweep: false)
                 if presenter.showsMatchText {
                     Text(reason.isEmpty ? L10n.t("notch.notRecognised") : reason)
                         .font(.system(size: 13, weight: .semibold))
@@ -86,7 +86,7 @@ struct NotchView: View {
 
         case .rejected(let reason):
             HStack(spacing: 10) {
-                FaceScanView(tint: .red)
+                FaceScanView(tint: .red, showsSweep: false)
                 if presenter.showsMatchText {
                     Text(reason.isEmpty ? L10n.t("notch.notYou") : reason)
                         .font(.system(size: 13, weight: .semibold))
@@ -151,6 +151,9 @@ enum NotchPalette {
 
 struct FaceScanView: View {
     var tint: Color = NotchPalette.green
+    /// The up/down sweep line reads as "actively looking"; it is dropped for the
+    /// failure and rejection states.
+    var showsSweep: Bool = true
 
     @State private var breathe = false
     @State private var sweep: CGFloat = -17
@@ -165,17 +168,19 @@ struct FaceScanView: View {
                 .frame(width: side, height: side)
                 .scaleEffect(breathe ? 1.06 : 0.97)
 
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [.clear, tint.opacity(0.95), .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
+            if showsSweep {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [.clear, tint.opacity(0.95), .clear],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
                     )
-                )
-                .frame(width: side, height: 2.0)
-                .offset(y: sweep)
-                .mask(RoundedRectangle(cornerRadius: 10, style: .continuous).frame(width: side, height: side))
+                    .frame(width: side, height: 2.0)
+                    .offset(y: sweep)
+                    .mask(RoundedRectangle(cornerRadius: 10, style: .continuous).frame(width: side, height: side))
+            }
         }
         .frame(width: side, height: side)
         .onAppear {

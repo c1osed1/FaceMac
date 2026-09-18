@@ -7,8 +7,9 @@ import SwiftUI
 /// A small circular "scan again" button shown on the lock screen, next to the
 /// user avatar.
 ///
-/// It only appears after a scan actually failed (never while scanning or when
-/// recognition is idle), and it fades/scales in and out.
+/// It appears when the lock screen is waiting for a tap (a deliberate lock) or
+/// after a scan actually failed, and never while scanning. It fades/scales in
+/// and out.
 @MainActor
 final class RetryButtonPresenter: ObservableObject {
     @Published private(set) var presented = false
@@ -21,7 +22,7 @@ final class RetryButtonPresenter: ObservableObject {
 
     private var panel: NSPanel?
     private var locked = false
-    private var failed = false
+    private var prompted = false
     private var observers: [NSObjectProtocol] = []
     private var dragStartOrigin: CGPoint?
     private var hideTask: Task<Void, Never>?
@@ -43,7 +44,7 @@ final class RetryButtonPresenter: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.locked = false
-                self?.failed = false
+                self?.prompted = false
                 self?.refresh()
             }
         })
@@ -54,15 +55,16 @@ final class RetryButtonPresenter: ObservableObject {
         refresh()
     }
 
-    /// True only after a failed scan; driven by the coordinator state.
-    func setFailed(_ value: Bool) {
-        guard failed != value else { return }
-        failed = value
+    /// True while the button should be offered on the lock screen: idle and
+    /// waiting for a tap, or after a failed scan. Driven by coordinator state.
+    func setPrompted(_ value: Bool) {
+        guard prompted != value else { return }
+        prompted = value
         refresh()
     }
 
     func refresh() {
-        let shouldShow = previewing || (locked && failed)
+        let shouldShow = previewing || (locked && prompted)
         if shouldShow {
             show()
         } else {
